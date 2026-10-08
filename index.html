@@ -221,7 +221,7 @@ function itemUrl(it){
 
 // 注文文。LINEはURLで本文を渡せないので、ボタンを押したときに写しておく（トークで貼り付けるだけ）
 function orderText(it, v){
-  const who = v['担当者'] ? String(v['担当者']).replace(/（.*?）/,'') + ' 様\n' : '';
+  const who = v['担当者'] ? String(v['担当者']).replace(/（.*?）/,'').replace(/さん$/,'').trim() + ' 様\n' : '';
   return `${who}下記の注文をお願いします。\n品名：${it['品名']}${it['商品コード']?'\n商品コード：'+it['商品コード']:''}${it['規格']?'\n規格：'+it['規格']:''}\n数量：`;
 }
 
