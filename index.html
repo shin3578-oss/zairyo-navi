@@ -287,9 +287,16 @@ async function load(){
   $('#count').textContent = '読み込み中…';
   const j = await api('list');
   DB = j;
-  DB.items.forEach(it => it._n = norm([it['品名'],it['キーワード'],it['商品コード'],it['規格'],it['分類'],it['業者'],it['メモ']].join(' ')));
+  prep();
   try{ localStorage.setItem('zn_cache', JSON.stringify({items:DB.items,vendors:DB.vendors,notes:DB.notes})) }catch(e){}
   renderAll();
+}
+
+function prep(){
+  DB.items.forEach(it => {
+    it._n = norm([it['品名'],it['キーワード'],it['商品コード'],it['規格'],it['分類'],it['業者'],it['メモ']].join(' '));
+    it._name = norm(it['品名']); it._kw = norm(it['キーワード']);
+  });
 }
 
 function vendorOf(name){ return DB.vendors.find(v => v['業者'] === name) || {'業者':name}; }
@@ -361,7 +368,10 @@ function renderSearch(){
   if(cFilter) base = base.filter(it => it['分類'] === cFilter);
   const byDate = (a,b) => (b['最終購入日']||'').localeCompare(a['最終購入日']||'');
   const hit = words.length ? base.filter(it => words.every(w => it._n.includes(w))) : base.slice();
-  hit.sort(byDate);
+  // 品名に当たったもの → キーワードに当たったもの → 分類などに当たったもの、の順。同じなら新しく買った順
+  const rank = it => words.reduce((t,w) => t + (it._name.includes(w) ? 3 : it._kw.includes(w) ? 2 : 1), 0);
+  hit.forEach(it => it._r = rank(it));
+  hit.sort((a,b) => (b._r - a._r) || byDate(a,b));
   // ぴったりが少ないときは、似ている品目も出す
   let near = [];
   if(words.length && hit.length < 8){
@@ -510,7 +520,7 @@ function start(){ $('#gate').classList.add('hidden'); $('#app').classList.remove
 (async function init(){
   if(!KEY){ $('#gate').classList.remove('hidden'); return; }
   start();
-  try{ const c=JSON.parse(localStorage.getItem('zn_cache')||'null'); if(c){ DB=c; DB.items.forEach(it=>it._n=norm([it['品名'],it['キーワード'],it['商品コード'],it['規格'],it['分類'],it['業者'],it['メモ']].join(' '))); renderAll(); } }catch(e){}
+  try{ const c=JSON.parse(localStorage.getItem('zn_cache')||'null'); if(c){ DB=c; prep(); renderAll(); } }catch(e){}
   try{ await load(); }catch(err){ toast('最新にできませんでした：'+err.message); if(/合言葉/.test(err.message)){ LS.set('key',''); location.reload(); } }
 })();
 </script>
