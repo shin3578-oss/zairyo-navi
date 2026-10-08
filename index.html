@@ -50,6 +50,20 @@ main{padding:12px 16px 96px;max-width:760px;margin:0 auto}
 .btn.main{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:bold}
 .btn.small{padding:5px 10px;font-size:13px}
 .empty{text-align:center;color:var(--sub);padding:40px 0}
+.item{display:flex;gap:12px}
+.item .body{flex:1;min-width:0}
+.thumb{flex:none;width:76px;height:76px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:10px;cursor:zoom-in}
+.thumb.none{display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:11px;background:var(--bg);cursor:default}
+.ctag{font-size:12px;color:var(--sub)}
+.subhead{font-size:13px;font-weight:bold;color:var(--sub);margin:16px 2px 8px}
+.viewbar{display:flex;gap:6px;align-items:center;margin:2px 0 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px;cursor:pointer;text-align:left;font-size:12px;line-height:1.35}
+.tile img,.tile .ph{width:100%;aspect-ratio:1;object-fit:contain;background:#fff;border-radius:8px;display:block;margin-bottom:4px}
+.tile .ph{display:flex;align-items:center;justify-content:center;color:var(--sub);background:var(--bg)}
+.shot{display:flex;gap:10px;align-items:center;margin-top:6px}
+.shot img{width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+#bigImg{max-width:100%;max-height:80vh;display:block;margin:0 auto;background:#fff}
 label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
 .f{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 textarea.f{min-height:90px}
@@ -84,11 +98,12 @@ dialog h2{font-size:17px;margin:0 0 4px}
   <h1>材料ナビ <small id="who"></small></h1>
   <input id="q" class="search" type="search" placeholder="品名・商品コード・キーワードで探す" autocomplete="off" enterkeyhint="search">
   <div class="chips" id="vchips"></div>
+  <div class="chips" id="cchips"></div>
 </header>
 
 <main>
   <section id="tab-search">
-    <div class="meta" id="count"></div>
+    <div class="viewbar"><button class="chip" id="vList" aria-pressed="true">リスト</button><button class="chip" id="vGrid" aria-pressed="false">写真で見る</button><span class="meta" id="count" style="margin:0 0 0 6px"></span></div>
     <div id="list"></div>
   </section>
 
@@ -105,6 +120,9 @@ dialog h2{font-size:17px;margin:0 0 4px}
         <input class="f" id="nVendor" list="vendorNames" placeholder="Ci・FEED・ケーオーデンタル など">
         <label>内容（商品コード・規格・値段・置き場所・誰が使うか など）</label>
         <textarea class="f" id="nBody"></textarea>
+        <label>写真（箱やラベルを撮っておくと、あとで探しやすくなります）</label>
+        <div class="shot"><input type="file" accept="image/*" capture="environment" id="nPhotoFile"><img id="nPhotoPrev" class="hidden" alt=""></div>
+        <input type="hidden" id="nPhoto">
         <button class="btn main" style="margin-top:12px">残す</button>
       </form>
     </div>
@@ -141,6 +159,9 @@ dialog h2{font-size:17px;margin:0 0 4px}
     <div><label>最終購入日</label><input class="f" name="最終購入日" placeholder="2026-10-08"></div>
   </div>
   <label>商品ページURL（空なら業者の書式から自動で作ります）</label><input class="f" name="URL" inputmode="url">
+  <label>写真</label>
+  <div class="shot"><input type="file" accept="image/*" capture="environment" id="iPhotoFile"><img id="iPhotoPrev" class="hidden" alt=""></div>
+  <input type="hidden" name="写真">
   <label>メモ</label><textarea class="f" name="メモ"></textarea>
   <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="非表示"> もう使わない（検索に出さない）</label>
   <div class="acts"><button class="btn main" value="save">保存</button><button class="btn" value="cancel" formnovalidate>やめる</button></div>
@@ -165,6 +186,8 @@ dialog h2{font-size:17px;margin:0 0 4px}
   <div class="acts"><button class="btn main" value="save">保存</button><button class="btn" value="cancel" formnovalidate>やめる</button></div>
 </form></dialog>
 
+<dialog id="viewDlg"><form method="dialog" style="padding:12px"><div id="viewBody"></div><div class="acts"><button class="btn" value="close">閉じる</button></div></form></dialog>
+<dialog id="imgDlg"><form method="dialog" style="padding:8px"><img id="bigImg" alt=""><div class="acts"><button class="btn" value="close">閉じる</button></div></form></dialog>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -172,7 +195,9 @@ const API = 'https://script.google.com/macros/s/AKfycbytWsBvMXPg4qlNlpFjumLe5WzS
 const LS = {get:k=>{try{return localStorage.getItem('zn_'+k)}catch(e){return null}}, set:(k,v)=>{try{localStorage.setItem('zn_'+k,v)}catch(e){}}};
 let KEY = LS.get('key'), NAME = LS.get('name');
 let DB = {items:[],vendors:[],notes:[]};
-let vFilter = '', editingNote = null;
+let vFilter = '', cFilter = '', view = 'list', editingNote = null;
+const CATS = ['麻酔・注射','感染対策・消毒','グローブ・マスク・ガウン','滅菌・洗浄','切削・バー・ポイント','根管治療','修復・接着','印象・模型','補綴・仮歯','外科・インプラント・縫合','歯周・予防・PMTC','矯正','物販・口腔ケア用品','器具・小物','ユニット・機械部品','X線・撮影','衛生材料・ディスポ','薬品・医薬品','技工','事務・日用品','その他'];
+const PHOTO = {};  // photo:<id> → data URL
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -194,6 +219,65 @@ async function api(action, extra={}){
       return j;
     }catch(err){ if(action!=='list' || n>=1) throw err; }
   }
+}
+
+// 写真だけはURLに入らない大きさなのでPOST。中身が落ちて「合言葉が違います」が返ったときは何も書かれていないので、やり直してよい
+async function apiPost(action, extra={}){
+  let last;
+  for(let n=0;n<4;n++){
+    try{
+      const res = await fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(Object.assign({key:KEY, action, by:NAME}, extra))});
+      const j = await res.json();
+      if(j.ok) return j;
+      last = new Error(j.error||'失敗しました');
+      if(!j.debug) throw last;
+    }catch(err){ last = err; }
+  }
+  throw last;
+}
+
+// スマホの写真を縮小（長い辺640px・1枚およそ35KB以下）
+function shrink(file){
+  return new Promise((ok, ng) => {
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      for(const side of [640, 520, 420]){
+        const r = Math.min(1, side/Math.max(w,h)); const c = document.createElement('canvas');
+        c.width = Math.round(w*r); c.height = Math.round(h*r); c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        for(const q of [0.72,0.6,0.5,0.4]){ const d = c.toDataURL('image/jpeg', q); if(d.length < 45000){ URL.revokeObjectURL(url); return ok(d); } }
+      }
+      ng(new Error('写真が大きすぎます'));
+    };
+    img.onerror = () => ng(new Error('写真を読めませんでした'));
+    img.src = url;
+  });
+}
+
+async function uploadPhoto(input, prev, hidden){
+  const f = input.files && input.files[0]; if(!f) return;
+  busy('写真を送っています…');
+  try{
+    const d = await shrink(f);
+    const r = await apiPost('addPhoto', {data:d});
+    PHOTO['photo:'+r.id] = d; hidden.value = 'photo:'+r.id; prev.src = d; prev.classList.remove('hidden'); toast('写真を付けました');
+  }catch(err){ toast(err.message); }
+}
+
+function photoSrc(v){ if(!v) return ''; if(v.startsWith('photo:')) return PHOTO[v] || ''; return v; }
+// スタッフが撮った写真は、表示するときに1枚ずつ取りに行く
+async function fillPhotos(root){
+  for(const el of root.querySelectorAll('img[data-pid]')){
+    const id = el.dataset.pid;
+    if(!PHOTO[id]){ try{ PHOTO[id] = (await api('photo',{id:id.slice(6)})).data; }catch(e){ continue; } }
+    el.src = PHOTO[id]; el.removeAttribute('data-pid');
+  }
+}
+function imgTag(v, cls){
+  if(!v) return '';
+  const src = photoSrc(v);
+  return src ? `<img class="${cls}" loading="lazy" src="${esc(src)}" alt="" data-big="1">`
+             : `<img class="${cls}" loading="lazy" alt="" data-pid="${esc(v)}" data-big="1">`;
 }
 
 function busy(m){const t=$('#toast');clearTimeout(t._h);t.textContent=m;t.classList.add('show')}
@@ -240,27 +324,60 @@ function actions(it){
   return out.join('');
 }
 
-function renderSearch(){
-  const q = norm($('#q').value);
-  const words = $('#q').value.normalize('NFKC').split(/\s+/).map(norm).filter(Boolean);
-  let hit = DB.items.filter(it => !it['非表示'] || it['非表示']==='FALSE');
-  if(vFilter) hit = hit.filter(it => it['業者'] === vFilter);
-  if(words.length) hit = hit.filter(it => words.every(w => it._n.includes(w)));
-  hit.sort((a,b) => (b['最終購入日']||'').localeCompare(a['最終購入日']||''));
-  const shown = hit.slice(0, 80);
-  $('#count').textContent = `${hit.length}件` + (hit.length>shown.length ? `（新しく買った順に${shown.length}件を表示・言葉を足すと絞れます）` : '');
-  $('#list').innerHTML = shown.map(it => {
-    const v = vendorOf(it['業者']);
-    return `<div class="card">
+function grams(w){ const g=[]; for(let i=0;i<w.length-1;i++) g.push(w.slice(i,i+2)); return g.length?g:[w]; }
+// あいまい一致：入力した言葉の2文字の組が、品目にどれだけ含まれるか（言い間違い・うろ覚え向け）
+function fuzzyScore(it, words){
+  let t = 0;
+  for(const w of words){ const g = grams(w); t += g.filter(x => it._n.includes(x)).length / g.length; }
+  return t / words.length;
+}
+
+function card(it){
+  const v = vendorOf(it['業者']);
+  return `<div class="card"><div class="item">
+    ${it['写真'] ? imgTag(it['写真'],'thumb') : '<div class="thumb none">写真なし</div>'}
+    <div class="body">
       <h3>${esc(it['品名'])}</h3>
       <div class="row"><span class="vtag ${vclass(v)}">${esc(it['業者'])}</span>
+        ${it['分類']?`<span class="ctag">${esc(it['分類'])}</span>`:''}
         ${it['規格']?`<span>${esc(it['規格'])}</span>`:''}
         ${it['単価']?`<span>¥${Number(String(it['単価']).replace(/,/g,'')).toLocaleString()}</span>`:''}
         ${it['商品コード']?`<span>コード ${esc(it['商品コード'])}</span>`:''}
         ${it['最終購入日']?`<span>最終 ${esc(it['最終購入日'])}</span>`:''}</div>
-      ${it['メモ']?`<div class="memo">${esc(it['メモ'])}</div>`:''}
-      <div class="acts">${actions(it)}</div></div>`;
-  }).join('') || `<div class="empty">見つかりませんでした。<br>台帳に無いものは「新しく入った」からメモしてください。<br><br>${searchOut()}</div>`;
+    </div></div>
+    ${it['メモ']?`<div class="memo">${esc(it['メモ'])}</div>`:''}
+    <div class="acts">${actions(it)}</div></div>`;
+}
+
+function tile(it){
+  const pic = it['写真'] ? imgTag(it['写真'],'').replace(' data-big="1"','') : '<div class="ph">写真なし</div>';
+  return `<button class="tile" data-view="${esc(it.id)}">${pic}${esc(it['品名'])}</button>`;
+}
+
+function renderSearch(){
+  const words = $('#q').value.normalize('NFKC').split(/\s+/).map(norm).filter(Boolean);
+  let base = DB.items.filter(it => !it['非表示'] || it['非表示']==='FALSE');
+  if(vFilter) base = base.filter(it => it['業者'] === vFilter);
+  if(cFilter) base = base.filter(it => it['分類'] === cFilter);
+  const byDate = (a,b) => (b['最終購入日']||'').localeCompare(a['最終購入日']||'');
+  const hit = words.length ? base.filter(it => words.every(w => it._n.includes(w))) : base.slice();
+  hit.sort(byDate);
+  // ぴったりが少ないときは、似ている品目も出す
+  let near = [];
+  if(words.length && hit.length < 8){
+    const got = new Set(hit.map(i=>i.id));
+    near = base.filter(it => !got.has(it.id)).map(it => [it, fuzzyScore(it, words)])
+      .filter(([,sc]) => sc >= 0.5).sort((a,b) => b[1]-a[1]).slice(0, 30).map(([it]) => it);
+  }
+  const limit = view==='grid' ? 120 : 80;
+  const shown = hit.slice(0, limit);
+  $('#count').textContent = `${hit.length}件` + (hit.length>shown.length ? `（新しく買った順に${shown.length}件）` : '') + (near.length ? `／似ているもの ${near.length}件` : '');
+  const draw = arr => view==='grid' ? `<div class="grid">${arr.map(tile).join('')}</div>` : arr.map(card).join('');
+  let html = draw(shown);
+  if(near.length) html += `<div class="subhead">もしかして（言葉が近いもの）</div>` + draw(near);
+  if(!shown.length && !near.length) html = `<div class="empty">見つかりませんでした。<br>使い道の言葉（例：麻酔、仮歯、手袋）や、上の分類からも探せます。<br>台帳に無いものは「新しく入った」からメモしてください。<br><br>${searchOut()}</div>`;
+  $('#list').innerHTML = html;
+  fillPhotos($('#list'));
 }
 
 // 台帳に無いとき：通販サイトで同じ言葉を探すボタン
@@ -277,7 +394,10 @@ function renderChips(){
     .concat(names.map(n => `<button class="chip" data-v="${esc(n)}" aria-pressed="${vFilter===n}">${esc(n)} ${counts[n]}</button>`)).join('');
   const all = new Set(names.concat(DB.vendors.map(v=>v['業者'])));
   $('#vendorNames').innerHTML = [...all].map(n=>`<option value="${esc(n)}">`).join('');
-  $('#catNames').innerHTML = [...new Set(DB.items.map(i=>i['分類']).filter(Boolean))].map(n=>`<option value="${esc(n)}">`).join('');
+  $('#catNames').innerHTML = CATS.map(n=>`<option value="${esc(n)}">`).join('');
+  const cc = {}; DB.items.forEach(it => { if(it['分類']) cc[it['分類']] = (cc[it['分類']]||0)+1; });
+  $('#cchips').innerHTML = [`<button class="chip" data-c="" aria-pressed="${!cFilter}">分類：すべて</button>`]
+    .concat(CATS.filter(c=>cc[c]).map(c => `<button class="chip" data-c="${esc(c)}" aria-pressed="${cFilter===c}">${esc(c)} ${cc[c]}</button>`)).join('');
 }
 
 function noteCard(n, open){
@@ -286,6 +406,7 @@ function noteCard(n, open){
     <h3>${esc(n['品名'])}</h3>
     ${n['業者']?`<div class="row">業者：${esc(n['業者'])}</div>`:''}
     ${n['内容']?`<div class="memo">${esc(n['内容'])}</div>`:''}
+    ${n['写真']?`<div style="margin-top:8px">${imgTag(n['写真'],'thumb')}</div>`:''}
     ${open?`<div class="acts"><button class="btn main small" data-take="${esc(n.id)}">台帳に取り込む</button><button class="btn small" data-close="${esc(n.id)}">取り込まずに閉じる</button></div>`
           :(n['対応者']?`<div class="row" style="margin-top:6px">${esc(n['対応日'])} ${esc(n['対応者'])}</div>`:'')}
   </div>`;
@@ -296,6 +417,7 @@ function renderNotes(){
   const done = DB.notes.filter(n => n['状態']!=='未反映').reverse().slice(0,50);
   $('#notesOpen').innerHTML = open.map(n=>noteCard(n,true)).join('') || '<div class="empty">取り込み待ちはありません</div>';
   $('#notesDone').innerHTML = done.map(n=>noteCard(n,false)).join('');
+  fillPhotos($('#notesOpen'));
   $('#nBadge').textContent = open.length; $('#nBadge').classList.toggle('hidden', !open.length);
 }
 
@@ -321,27 +443,37 @@ function openItem(it, title){
   const f = $('#itemForm'); f.reset(); f.dataset.id = it.id || '';
   $('#itemTitle').textContent = title || '品目を編集';
   [...f.elements].forEach(el => { if(!el.name) return; if(el.type==='checkbox') el.checked = !!it[el.name] && it[el.name]!=='FALSE'; else el.value = it[el.name] || ''; });
+  const pv = $('#iPhotoPrev'); pv.classList.toggle('hidden', !it['写真']); pv.removeAttribute('src');
+  if(it['写真']){ const src = photoSrc(it['写真']); if(src) pv.src = src; else { pv.dataset.pid = it['写真']; fillPhotos(pv.parentElement); } }
   $('#itemDlg').showModal();
 }
 
 // ---- イベント ----
 $('#q').addEventListener('input', renderSearch);
 $('#vchips').addEventListener('click', e => { const b=e.target.closest('.chip'); if(!b) return; vFilter=b.dataset.v; renderChips(); renderSearch(); });
+$('#cchips').addEventListener('click', e => { const b=e.target.closest('.chip'); if(!b) return; cFilter=b.dataset.c; renderChips(); renderSearch(); });
+['List','Grid'].forEach(k => $('#v'+k).addEventListener('click', () => { view = k.toLowerCase(); $('#vList').setAttribute('aria-pressed', view==='list'); $('#vGrid').setAttribute('aria-pressed', view==='grid'); renderSearch(); }));
+$('#nPhotoFile').addEventListener('change', e => uploadPhoto(e.target, $('#nPhotoPrev'), $('#nPhoto')));
+$('#iPhotoFile').addEventListener('change', e => uploadPhoto(e.target, $('#iPhotoPrev'), $('#itemForm').elements['写真']));
 document.querySelector('nav').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
   document.querySelectorAll('nav button').forEach(x => x.setAttribute('aria-current', x===b));
   ['search','new','vendors'].forEach(t => $('#tab-'+t).classList.toggle('hidden', t!==b.dataset.tab));
-  $('#q').parentElement.querySelector('.chips').classList.toggle('hidden', b.dataset.tab!=='search');
+  document.querySelectorAll('header .chips').forEach(x => x.classList.toggle('hidden', b.dataset.tab!=='search'));
   $('#q').classList.toggle('hidden', b.dataset.tab!=='search');
   window.scrollTo(0,0);
 });
 document.addEventListener('click', e => {
+  const big = e.target.closest('img[data-big]');
+  if(big && big.src){ $('#bigImg').src = big.src; $('#imgDlg').showModal(); return; }
+  const tl = e.target.closest('[data-view]');
+  if(tl){ const it = DB.items.find(i=>i.id===tl.dataset.view); $('#viewBody').innerHTML = card(it); fillPhotos($('#viewBody')); $('#viewDlg').showModal(); return; }
   const c = e.target.closest('[data-copy]');
   if(c){ try{ navigator.clipboard.writeText(c.dataset.copy).then(()=>toast('注文文を写しました。トークに貼り付けて数量を入れてください')); }catch(err){} return; }
   const t = e.target.closest('[data-edit],[data-take],[data-close],[data-vedit],#addVendor'); if(!t) return;
   if(t.dataset.edit){ openItem(DB.items.find(i=>i.id===t.dataset.edit)); }
   else if(t.dataset.take){ const n=DB.notes.find(x=>x.id===t.dataset.take); editingNote=n;
-    openItem({'品名':n['品名'],'業者':n['業者'],'メモ':n['内容'],'最終購入日':(n['日時']||'').slice(0,10)}, '台帳に取り込む'); }
+    openItem({'品名':n['品名'],'業者':n['業者'],'メモ':n['内容'],'写真':n['写真'],'最終購入日':(n['日時']||'').slice(0,10)}, '台帳に取り込む'); }
   else if(t.dataset.close){ busy('閉じています…'); api('resolveNote',{id:t.dataset.close,status:'取り込まず'}).then(load).then(()=>toast('閉じました')).catch(err=>toast(err.message)); }
   else if(t.dataset.vedit || t.id==='addVendor'){ const v=DB.vendors.find(x=>x['業者']===t.dataset.vedit)||{};
     const f=$('#vendorForm'); f.reset(); [...f.elements].forEach(el=>{ if(el.name) el.value=v[el.name]||(el.tagName==='SELECT'?el.options[0].value:''); }); $('#vendorDlg').showModal(); }
@@ -364,9 +496,9 @@ $('#vendorForm').addEventListener('submit', async e => {
 });
 $('#noteForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const data = {'投稿者':NAME,'種別':$('#nKind').value,'品名':$('#nName').value.trim(),'業者':$('#nVendor').value.trim(),'内容':$('#nBody').value.trim()};
+  const data = {'投稿者':NAME,'種別':$('#nKind').value,'品名':$('#nName').value.trim(),'業者':$('#nVendor').value.trim(),'内容':$('#nBody').value.trim(),'写真':$('#nPhoto').value};
   busy('送っています…');
-  try{ await api('addNote',{data}); e.target.reset(); await load(); toast('残しました。ありがとうございます'); }catch(err){ toast(err.message); }
+  try{ await api('addNote',{data}); e.target.reset(); $('#nPhoto').value=''; $('#nPhotoPrev').classList.add('hidden'); await load(); toast('残しました。ありがとうございます'); }catch(err){ toast(err.message); }
 });
 $('#gateForm').addEventListener('submit', async e => {
   e.preventDefault(); KEY=$('#gKey').value.trim(); NAME=$('#gName').value.trim();
