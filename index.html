@@ -182,12 +182,17 @@ function norm(s){
     .replace(/[\s\-‐ー－・\/()（）]/g,'');
 }
 
+// GETで送る（POSTはGoogle側の転送で中身が落ちることがあるため）。読むだけの list は1回だけやり直す。
 async function api(action, extra={}){
-  const res = await fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify(Object.assign({key:KEY, action, by:NAME}, extra))});
-  const j = await res.json();
-  if(!j.ok) throw new Error(j.error || '失敗しました');
-  return j;
+  const u = API + '?' + new URLSearchParams({key:KEY||'', action, by:NAME||'', payload:JSON.stringify(extra)});
+  for(let n=0;;n++){
+    try{
+      const res = await fetch(u);
+      const j = await res.json();
+      if(!j.ok) throw new Error(j.error || '失敗しました');
+      return j;
+    }catch(err){ if(action!=='list' || n>=1) throw err; }
+  }
 }
 
 function busy(m){const t=$('#toast');clearTimeout(t._h);t.textContent=m;t.classList.add('show')}
