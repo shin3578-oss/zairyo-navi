@@ -329,8 +329,8 @@ document.addEventListener('click', e => {
   else if(t.dataset.vedit || t.id==='addVendor'){ const v=DB.vendors.find(x=>x['業者']===t.dataset.vedit)||{};
     const f=$('#vendorForm'); f.reset(); [...f.elements].forEach(el=>{ if(el.name) el.value=v[el.name]||(el.tagName==='SELECT'?el.options[0].value:''); }); $('#vendorDlg').showModal(); }
 });
-$('#itemDlg').addEventListener('close', async () => {
-  if($('#itemDlg').returnValue!=='save'){ editingNote=null; return; }
+$('#itemForm').addEventListener('submit', async e => {
+  if(!e.submitter || e.submitter.value!=='save'){ editingNote=null; return; }
   const f=$('#itemForm'); const data={id:f.dataset.id||undefined};
   [...f.elements].forEach(el => { if(el.name) data[el.name] = el.type==='checkbox' ? (el.checked?'TRUE':'') : el.value.trim(); });
   try{
@@ -339,8 +339,8 @@ $('#itemDlg').addEventListener('close', async () => {
     editingNote=null; await load(); toast('保存しました');
   }catch(err){ toast(err.message); }
 });
-$('#vendorDlg').addEventListener('close', async () => {
-  if($('#vendorDlg').returnValue!=='save') return;
+$('#vendorForm').addEventListener('submit', async e => {
+  if(!e.submitter || e.submitter.value!=='save') return;
   const data={}; [...$('#vendorForm').elements].forEach(el=>{ if(el.name) data[el.name]=el.value.trim(); });
   try{ await api('saveVendor',{data}); await load(); toast('保存しました'); }catch(err){ toast(err.message); }
 });
