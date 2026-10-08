@@ -157,6 +157,7 @@ dialog h2{font-size:17px;margin:0 0 4px}
     <div><label>メール</label><input class="f" name="メール" inputmode="email"></div>
     <div><label>FAX</label><input class="f" name="FAX" inputmode="tel"></div>
   </div>
+  <label>LINEのトークURL（公式LINEのチャット画面のURL）</label><input class="f" name="LINE" inputmode="url">
   <label>注文方法（例：担当に電話／訪問時に渡す／サイトで注文）</label><input class="f" name="注文方法">
   <label>商品URLの書式（{code} が商品コードに置き換わります）</label><input class="f" name="商品URL" inputmode="url">
   <label>検索URLの書式（{q} が品名に置き換わります）</label><input class="f" name="検索URL" inputmode="url">
@@ -218,14 +219,21 @@ function itemUrl(it){
   return '';
 }
 
+// 注文文。LINEはURLで本文を渡せないので、ボタンを押したときに写しておく（トークで貼り付けるだけ）
+function orderText(it, v){
+  const who = v['担当者'] ? String(v['担当者']).replace(/（.*?）/,'') + ' 様\n' : '';
+  return `${who}下記の注文をお願いします。\n品名：${it['品名']}${it['商品コード']?'\n商品コード：'+it['商品コード']:''}${it['規格']?'\n規格：'+it['規格']:''}\n数量：`;
+}
+
 function actions(it){
   const v = vendorOf(it['業者']); const out = [];
   const url = itemUrl(it);
   if(url) out.push(`<a class="btn main" href="${esc(url)}" target="_blank" rel="noopener">🛒 ${esc(v['業者'])}で開く</a>`);
+  if(v['LINE']) out.push(`<a class="btn${url?'':' main'}" href="${esc(v['LINE'])}" target="_blank" rel="noopener" data-copy="${esc(orderText(it,v))}">💬 LINEで注文</a>`);
   if(v['電話']) out.push(`<a class="btn" href="tel:${esc(v['電話'].replace(/[^\d+]/g,''))}">📞 ${esc(v['担当者']||'電話')}</a>`);
   if(v['メール']) {
     const sub = encodeURIComponent('注文のお願い（大崎オーバルコート歯科・矯正歯科室）');
-    const body = encodeURIComponent(`${v['担当者']?v['担当者']+' 様\n\n':''}下記の注文をお願いします。\n\n品名：${it['品名']}\n商品コード：${it['商品コード']||''}\n規格：${it['規格']||''}\n数量：\n\n医療法人社団KDS 大崎オーバルコート歯科・矯正歯科室\n${NAME||''}`);
+    const body = encodeURIComponent(orderText(it,v) + `\n\n医療法人社団KDS 大崎オーバルコート歯科・矯正歯科室\n${NAME||''}`);
     out.push(`<a class="btn" href="mailto:${esc(v['メール'])}?subject=${sub}&body=${body}">✉️ メールで注文</a>`);
   }
   out.push(`<button class="btn small" data-edit="${esc(it.id)}">✏️ 直す</button>`);
@@ -298,7 +306,8 @@ function renderVendors(){
     <div class="row">${v['担当者']?`<span>担当：${esc(v['担当者'])}</span>`:''}${v['注文方法']?`<span>${esc(v['注文方法'])}</span>`:''}<span>台帳 ${counts[v['業者']]||0}品目</span></div>
     ${v['メモ']?`<div class="memo">${esc(v['メモ'])}</div>`:''}
     <div class="acts">
-      ${v['電話']?`<a class="btn main" href="tel:${esc(v['電話'].replace(/[^\d+]/g,''))}">📞 ${esc(v['電話'])}</a>`:''}
+      ${v['LINE']?`<a class="btn main" href="${esc(v['LINE'])}" target="_blank" rel="noopener">💬 LINE</a>`:''}
+      ${v['電話']?`<a class="btn${v['LINE']?'':' main'}" href="tel:${esc(v['電話'].replace(/[^\d+]/g,''))}">📞 ${esc(v['電話'])}</a>`:''}
       ${v['メール']?`<a class="btn" href="mailto:${esc(v['メール'])}">✉️ メール</a>`:''}
       ${v['FAX']?`<span class="btn small">FAX ${esc(v['FAX'])}</span>`:''}
       ${v['検索URL']?`<a class="btn" href="${esc(v['検索URL'].replace('{q}',''))}" target="_blank" rel="noopener">🌐 サイト</a>`:''}
@@ -327,6 +336,8 @@ document.querySelector('nav').addEventListener('click', e => {
   window.scrollTo(0,0);
 });
 document.addEventListener('click', e => {
+  const c = e.target.closest('[data-copy]');
+  if(c){ try{ navigator.clipboard.writeText(c.dataset.copy).then(()=>toast('注文文を写しました。トークに貼り付けて数量を入れてください')); }catch(err){} return; }
   const t = e.target.closest('[data-edit],[data-take],[data-close],[data-vedit],#addVendor'); if(!t) return;
   if(t.dataset.edit){ openItem(DB.items.find(i=>i.id===t.dataset.edit)); }
   else if(t.dataset.take){ const n=DB.notes.find(x=>x.id===t.dataset.take); editingNote=n;
