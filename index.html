@@ -190,6 +190,7 @@ async function api(action, extra={}){
   return j;
 }
 
+function busy(m){const t=$('#toast');clearTimeout(t._h);t.textContent=m;t.classList.add('show')}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2200)}
 
 async function load(){
@@ -325,7 +326,7 @@ document.addEventListener('click', e => {
   if(t.dataset.edit){ openItem(DB.items.find(i=>i.id===t.dataset.edit)); }
   else if(t.dataset.take){ const n=DB.notes.find(x=>x.id===t.dataset.take); editingNote=n;
     openItem({'品名':n['品名'],'業者':n['業者'],'メモ':n['内容'],'最終購入日':(n['日時']||'').slice(0,10)}, '台帳に取り込む'); }
-  else if(t.dataset.close){ api('resolveNote',{id:t.dataset.close,status:'取り込まず'}).then(load).then(()=>toast('閉じました')).catch(err=>toast(err.message)); }
+  else if(t.dataset.close){ busy('閉じています…'); api('resolveNote',{id:t.dataset.close,status:'取り込まず'}).then(load).then(()=>toast('閉じました')).catch(err=>toast(err.message)); }
   else if(t.dataset.vedit || t.id==='addVendor'){ const v=DB.vendors.find(x=>x['業者']===t.dataset.vedit)||{};
     const f=$('#vendorForm'); f.reset(); [...f.elements].forEach(el=>{ if(el.name) el.value=v[el.name]||(el.tagName==='SELECT'?el.options[0].value:''); }); $('#vendorDlg').showModal(); }
 });
@@ -333,20 +334,22 @@ $('#itemForm').addEventListener('submit', async e => {
   if(!e.submitter || e.submitter.value!=='save'){ editingNote=null; return; }
   const f=$('#itemForm'); const data={id:f.dataset.id||undefined};
   [...f.elements].forEach(el => { if(el.name) data[el.name] = el.type==='checkbox' ? (el.checked?'TRUE':'') : el.value.trim(); });
+  busy('保存中…');
   try{
-    const r = await api('saveItem',{data});
-    if(editingNote) await api('resolveNote',{id:editingNote.id,itemId:r.row.id});
+    await api('saveItem',{data, noteId: editingNote ? editingNote.id : ''});
     editingNote=null; await load(); toast('保存しました');
   }catch(err){ toast(err.message); }
 });
 $('#vendorForm').addEventListener('submit', async e => {
   if(!e.submitter || e.submitter.value!=='save') return;
   const data={}; [...$('#vendorForm').elements].forEach(el=>{ if(el.name) data[el.name]=el.value.trim(); });
+  busy('保存中…');
   try{ await api('saveVendor',{data}); await load(); toast('保存しました'); }catch(err){ toast(err.message); }
 });
 $('#noteForm').addEventListener('submit', async e => {
   e.preventDefault();
   const data = {'投稿者':NAME,'種別':$('#nKind').value,'品名':$('#nName').value.trim(),'業者':$('#nVendor').value.trim(),'内容':$('#nBody').value.trim()};
+  busy('送っています…');
   try{ await api('addNote',{data}); e.target.reset(); await load(); toast('残しました。ありがとうございます'); }catch(err){ toast(err.message); }
 });
 $('#gateForm').addEventListener('submit', async e => {
