@@ -521,7 +521,7 @@ function start(){ $('#gate').classList.add('hidden'); $('#app').classList.remove
   if(!KEY){ $('#gate').classList.remove('hidden'); return; }
   start();
   try{ const c=JSON.parse(localStorage.getItem('zn_cache')||'null'); if(c){ DB=c; prep(); renderAll(); } }catch(e){}
-  try{ await load(); }catch(err){ toast('最新にできませんでした：'+err.message); if(/合言葉/.test(err.message)){ LS.set('key',''); location.reload(); } }
+  try{ await load(); }catch(err){ toast('最新にできませんでした：'+err.message); if(/合言葉/.test(err.message)){ LS.set('key',''); try{ localStorage.removeItem('zn_cache') }catch(e){} location.reload(); } }  // 合言葉が入れ替わった（卒業など）＝手元の控えも消して入り直してもらう
 })();
 </script>
 </body>
